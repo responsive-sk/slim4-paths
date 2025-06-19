@@ -1,19 +1,17 @@
-# responsive-sk/slim4-paths
+# Slim4 Paths - Enhanced Path Management
 
-Simple and lightweight paths management for Slim 4 applications.
-
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/responsive-sk/slim4-paths.svg?style=flat-square)](https://packagist.org/packages/responsive-sk/slim4-paths)
-[![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
-[![Total Downloads](https://img.shields.io/packagist/dt/responsive-sk/slim4-paths.svg?style=flat-square)](https://packagist.org/packages/responsive-sk/slim4-paths)
+A comprehensive, secure path management package for PHP applications with advanced features for modern web development.
 
 ## Features
 
-- 🚀 **Lightweight** - No external dependencies
-- ⚡ **Fast** - Simple array-based path storage
-- 🎯 **Focused** - Does one thing well
-- 🔧 **Flexible** - Customizable paths
-- 📝 **Well documented** - Clear API and examples
-- ✅ **Tested** - Comprehensive test suite
+- **Secure Path Joining** - Prevents path traversal attacks
+- **30+ Predefined Paths** - Complete coverage for web applications
+- **Cross-Platform Compatibility** - Works on Windows, Linux, macOS
+- **Auto-Directory Creation** - Automatic directory structure setup
+- **Security Validation** - Input validation and path sanitization
+- **Framework Agnostic** - Works with any PHP framework
+- **Orbit CMS Support** - Built-in support for content management
+- **Module System Integration** - Advanced module path resolution
 
 ## Installation
 
@@ -21,154 +19,295 @@ Simple and lightweight paths management for Slim 4 applications.
 composer require responsive-sk/slim4-paths
 ```
 
-## Quick Start
-
-```php
-<?php
-
-use ResponsiveSk\Slim4Paths\Paths;
-
-// Create paths instance
-$paths = new Paths(__DIR__);
-
-// Use predefined paths
-echo $paths->config('database.php');    // /path/to/project/config/database.php
-echo $paths->templates('home.php');     // /path/to/project/templates/home.php
-echo $paths->logs('app.log');           // /path/to/project/var/logs/app.log
-
-// Use custom relative paths
-echo $paths->path('custom/file.txt');   // /path/to/project/custom/file.txt
-
-// Get all paths
-$allPaths = $paths->all();
-```
-
-## Usage
-
-### Basic Usage
+## Basic Usage
 
 ```php
 use ResponsiveSk\Slim4Paths\Paths;
 
-$paths = new Paths('/path/to/your/project');
+// Initialize with base path and configuration
+$paths = new Paths('/path/to/project', [
+    'templates' => '/path/to/project/templates',
+    'content' => '/path/to/project/content',
+    // ... more paths
+]);
 
-// Get specific paths
-$configPath = $paths->config();                    // /path/to/your/project/config
-$templateFile = $paths->templates('layout.php');   // /path/to/your/project/templates/layout.php
-$logFile = $paths->logs('app.log');               // /path/to/your/project/var/logs/app.log
+// Basic path access
+$templatePath = $paths->templates();
+$configPath = $paths->config();
+$publicPath = $paths->public();
 ```
 
-### Custom Paths
+## Core Path Methods
 
+### Basic Directories
 ```php
-$customPaths = [
-    'views' => '/custom/views/path',
-    'data' => '/custom/data/path'
-];
-
-$paths = new Paths('/project/root', $customPaths);
-
-echo $paths->get('views');  // /custom/views/path
-echo $paths->get('data');   // /custom/data/path
+$paths->base()          // Project root directory
+$paths->config()        // Configuration directory
+$paths->src()           // Source code directory
+$paths->public()        // Public web directory
+$paths->var()           // Variable/runtime directory
+$paths->vendor()        // Vendor directory
 ```
 
-### Dependency Injection
+### Template System
+```php
+$paths->templates()                    // Main templates directory
+$paths->views()                        // Views directory
+$paths->layouts('main.php')            // Layout templates
+$paths->partials('header.php')         // Partial templates
+```
+
+### Content Management (Orbit CMS)
+```php
+$paths->content()                      // Content root directory
+$paths->articles('post.md')            // Article files
+$paths->orbit()                        // Orbit database directory
+$paths->orbitDatabase('app')           // Orbit database file (app.db)
+```
+
+### Module System
+```php
+$paths->moduleConfig('Core/Storage')           // Module config file
+$paths->moduleRoutes('Core/Template')          // Module routes file
+$paths->moduleTemplates('Optional/Blog')       // Module templates directory
+```
+
+### Asset Management
+```php
+$paths->css('app.css')             // CSS files
+$paths->js('main.js')              // JavaScript files
+$paths->images('logo.png')         // Image files
+$paths->fonts('roboto.woff2')      // Font files
+$paths->media('video.mp4')         // Media files
+```
+
+### Development Tools
+```php
+$paths->docs('api.md')             // Documentation files
+$paths->scripts('deploy.sh')       // Script files
+$paths->bin('console')             // Executable files
+$paths->tests('UserTest.php')      // Test files
+```
+
+### Security & Storage
+```php
+$paths->keys('private.key')        // Security keys
+$paths->exports('data.json')       // Export files
+$paths->imports('import.csv')      // Import files
+$paths->logs('app.log')            // Log files
+$paths->cache('views')             // Cache files
+$paths->storage('uploads')         // Storage files
+```
+
+### Localization
+```php
+$paths->lang('en', 'messages.php')     // Language files
+$paths->translations('app.po')          // Translation files
+$paths->locales()                       // Locales directory
+```
+
+## Secure Path Joining
+
+The `getPath()` method provides secure path joining with built-in protection against path traversal attacks:
 
 ```php
-// In your DI container configuration
-$container->set(Paths::class, function () {
-    return new Paths(BASE_PATH);
-});
+// Secure path joining
+$safePath = $paths->getPath($baseDir, $relativePath);
 
-// In your classes
-class MyService
-{
-    public function __construct(private Paths $paths) {}
-    
-    public function doSomething(): void
-    {
-        $configFile = $this->paths->config('settings.php');
-        // ...
-    }
+// Automatic validation
+try {
+    $maliciousPath = $paths->getPath('/safe/dir', '../../../etc/passwd');
+} catch (InvalidArgumentException $e) {
+    // Path traversal detected and blocked
+    echo $e->getMessage(); // "Path traversal detected in: ../../../etc/passwd"
 }
 ```
 
-## Available Paths
+### Security Features
 
-| Method | Default Path | Description |
-|--------|-------------|-------------|
-| `base()` | `/` | Application base path |
-| `config($file)` | `/config` | Configuration files |
-| `templates($file)` | `/templates` | Template files |
-| `public($file)` | `/public` | Public web files |
-| `storage($file)` | `/var/storage` | Storage files |
-| `cache($file)` | `/var/cache` | Cache files |
-| `logs($file)` | `/var/logs` | Log files |
-| `assets($file)` | `/public/assets` | Asset files |
-| `uploads($file)` | `/public/uploads` | Upload files |
+- **Path Traversal Protection** - Detects and blocks `..` sequences
+- **Home Directory Protection** - Blocks `~` access
+- **Input Validation** - Validates all path components
+- **Cross-Platform Safety** - Handles different directory separators
 
-## API Reference
+## Configuration
 
-### Constructor
+### Basic Configuration
 
 ```php
-public function __construct(string $basePath, array $customPaths = [])
+$config = [
+    'base_path' => '/path/to/project',
+    'paths' => [
+        'templates' => '/path/to/project/templates',
+        'content' => '/path/to/project/content',
+        'public' => '/path/to/project/public',
+        // ... more paths
+    ]
+];
+
+$paths = new Paths($config['base_path'], $config['paths']);
 ```
 
-### Methods
+## Framework Integration
+
+### Slim Framework
 
 ```php
-// Get path by name
-public function get(string $name): string
+use ResponsiveSk\Slim4Paths\Paths;
+use Slim\Factory\AppFactory;
 
-// Create relative path
-public function path(string $relativePath): string
+$app = AppFactory::create();
 
-// Check if path exists
-public function has(string $name): bool
+// Add Paths to container
+$container = $app->getContainer();
+$container->set(Paths::class, function() {
+    $config = require 'config/paths.php';
+    return new Paths($config['base_path'], $config['paths']);
+});
 
-// Get all paths
-public function all(): array
+// Use in routes
+$app->get('/template/{name}', function ($request, $response, $args) {
+    $paths = $this->get(Paths::class);
+    $templatePath = $paths->templates($args['name'] . '.php');
+    
+    if (!file_exists($templatePath)) {
+        throw new \Slim\Exception\HttpNotFoundException($request);
+    }
+    
+    // Render template...
+});
+```
 
-// Convenience methods
-public function base(): string
-public function config(string $file = ''): string
-public function templates(string $file = ''): string
-// ... and more
+## Orbit CMS Integration
+
+This package includes built-in support for Orbit-style content management:
+
+```php
+// Article management
+$articlePath = $paths->articles('getting-started.md');
+$articlesDir = $paths->articles();
+
+// Database management
+$appDb = $paths->orbitDatabase('app');      // var/orbit/app.db
+$markDb = $paths->orbitDatabase('mark');    // var/orbit/mark.db
+$cacheDb = $paths->orbitDatabase('cache');  // var/orbit/cache.db
+
+// Content organization
+$contentRoot = $paths->content();           // content/
+$docsContent = $paths->content('docs');     // content/docs/
+```
+
+## Module System Support
+
+Advanced module path resolution for modular applications:
+
+```php
+// Module configuration
+$storageConfig = $paths->moduleConfig('Core/Storage');
+// Result: src/Modules/Core/Storage/config.php
+
+// Module routes
+$templateRoutes = $paths->moduleRoutes('Core/Template');
+// Result: src/Modules/Core/Template/routes.php
+
+// Module templates
+$blogTemplates = $paths->moduleTemplates('Optional/Blog');
+// Result: src/Modules/Optional/Blog/templates/
+
+$blogArticleTemplate = $paths->moduleTemplates('Optional/Blog', 'article.php');
+// Result: src/Modules/Optional/Blog/templates/article.php
+```
+
+## Security Best Practices
+
+### Always Use Secure Path Joining
+
+```php
+// Good - secure path joining
+$filePath = $paths->getPath($baseDir, $userInput);
+
+// Bad - vulnerable to path traversal
+$filePath = $baseDir . '/' . $userInput;
+```
+
+### Validate User Input
+
+```php
+function loadUserFile(Paths $paths, string $filename)
+{
+    // Validate filename
+    if (!preg_match('/^[a-zA-Z0-9_-]+\.txt$/', $filename)) {
+        throw new InvalidArgumentException('Invalid filename');
+    }
+    
+    // Use secure path joining
+    $filePath = $paths->getPath($paths->uploads(), $filename);
+    
+    return file_get_contents($filePath);
+}
+```
+
+### Directory Traversal Protection
+
+The package automatically protects against common attacks:
+
+```php
+// These will throw InvalidArgumentException
+$paths->getPath('/safe/dir', '../../../etc/passwd');
+$paths->getPath('/safe/dir', '~/sensitive/file');
+$paths->getPath('/safe/dir', 'file/../../../etc/passwd');
+```
+
+## Testing
+
+```php
+use PHPUnit\Framework\TestCase;
+use ResponsiveSk\Slim4Paths\Paths;
+
+class PathsTest extends TestCase
+{
+    public function testSecurePathJoining()
+    {
+        $paths = new Paths('/project', ['uploads' => '/project/uploads']);
+        
+        // Valid path
+        $validPath = $paths->getPath($paths->uploads(), 'file.txt');
+        $this->assertEquals('/project/uploads/file.txt', $validPath);
+        
+        // Invalid path should throw exception
+        $this->expectException(InvalidArgumentException::class);
+        $paths->getPath($paths->uploads(), '../../../etc/passwd');
+    }
+}
 ```
 
 ## Requirements
 
 - PHP 8.1 or higher
-
-## Testing
-
-```bash
-composer test
-```
-
-## Code Quality
-
-```bash
-# PHPStan analysis
-composer phpstan
-
-# Code style check
-composer cs
-
-# Code style fix
-composer cs-fix
-```
+- No additional dependencies
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE) for more information.
+MIT License
 
 ## Contributing
 
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
-## Credits
+## Changelog
 
-- [Responsive SK](https://github.com/responsive-sk)
-- [All Contributors](../../contributors)
+### Version 2.0.0
+- Added 30+ predefined path methods
+- Enhanced security with path traversal protection
+- Added Orbit CMS support
+- Added module system integration
+- Added comprehensive test coverage
+- Breaking changes from 1.x (see migration guide)
+
+### Version 1.0.0
+- Initial release
+- Basic path management functionality
