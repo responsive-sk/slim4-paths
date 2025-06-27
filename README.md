@@ -63,6 +63,41 @@ $logPath = $paths->logs('app.log');
 - ✅ Works in tests, CLI, without DI containers
 - ✅ Automatic path validation with clear error messages
 
+### `Paths::fromEnv($envVar = 'APP_BASE_PATH')`
+
+Create a `Paths` instance from an environment variable. Useful for applications that need environment-based configuration.
+
+```php
+// Set environment variable
+putenv('APP_BASE_PATH=/path/to/project');
+
+// Create Paths instance from environment
+$paths = Paths::fromEnv();
+
+// Or use custom environment variable
+putenv('BASE_PATH=/custom/path');
+$paths = Paths::fromEnv('BASE_PATH');
+```
+
+## Environment-based Usage
+
+Combine environment-based initialization with existing path methods:
+
+```php
+// Environment-based initialization
+$paths = Paths::fromEnv(); // or Paths::fromHere(__DIR__, 3)
+
+// Use existing path methods
+$paths->base();                    // Project root: /path/to/project
+$paths->public();                  // Public directory: /path/to/project/public
+$paths->config();                  // Config directory: /path/to/project/config
+$paths->src();                     // Source directory: /path/to/project/src
+
+// Configured paths work as expected
+$paths->storage('database.db');    // /path/to/project/var/storage/database.db
+$paths->logs('app.log');           // /path/to/project/var/logs/app.log
+```
+
 ## Core Path Methods
 
 ### Basic Directories

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-06-27
+
+### Added
+- **Environment-based Factory**
+  - `fromEnv()` static method for creating Paths instances from environment variables
+  - Supports custom environment variable names (default: APP_BASE_PATH)
+  - Automatic path validation and error handling
+
+### Enhanced
+- **Developer Experience**
+  - Environment-based configuration support
+  - Better error messages for invalid environment paths
+  - Consistent API with existing path methods
+
+### Examples
+```php
+// Environment-based initialization
+putenv('APP_BASE_PATH=/path/to/project');
+$paths = Paths::fromEnv();
+
+// Use existing methods with environment-based initialization
+$paths->storage('database.db'); // /path/to/project/var/storage/database.db
+$paths->logs('app.log');        // /path/to/project/var/logs/app.log
+```
+
 ## [2.1.0] - 2025-06-27
 
 ### Added

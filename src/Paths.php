@@ -519,4 +519,52 @@ class Paths
 
         return new self($basePath);
     }
+
+    /**
+     * Create Paths instance from environment variable
+     *
+     * Reads the base path from an environment variable. Useful for applications
+     * that need to configure the base path via environment configuration.
+     *
+     * @param string $envVar Environment variable name (default: APP_BASE_PATH)
+     * @return self New Paths instance
+     * @throws \RuntimeException If environment variable is not set or path is invalid
+     *
+     * @example
+     * // Set environment variable
+     * putenv('APP_BASE_PATH=/path/to/project');
+     *
+     * // Create Paths instance from environment
+     * $paths = Paths::fromEnv();
+     *
+     * // Or use custom environment variable
+     * $paths = Paths::fromEnv('BASE_PATH');
+     */
+    public static function fromEnv(string $envVar = 'APP_BASE_PATH'): self
+    {
+        $basePath = getenv($envVar);
+
+        if ($basePath === false || $basePath === '') {
+            throw new \RuntimeException("Environment variable '{$envVar}' is not set or empty");
+        }
+
+        // Resolve and validate the path
+        $resolvedPath = realpath($basePath);
+
+        if ($resolvedPath === false || !is_string($resolvedPath)) {
+            throw new \RuntimeException(
+                "Environment variable '{$envVar}' contains invalid path: {$basePath}"
+            );
+        }
+
+        if (!is_dir($resolvedPath)) {
+            throw new \RuntimeException(
+                "Environment variable '{$envVar}' path is not a directory: {$resolvedPath}"
+            );
+        }
+
+        return new self($resolvedPath);
+    }
+
+
 }
