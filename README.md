@@ -37,6 +37,32 @@ $configPath = $paths->config();
 $publicPath = $paths->public();
 ```
 
+## Convenience Methods
+
+### `Paths::fromHere(__DIR__, $levelsUp = 3)`
+
+Convenience method to create a `Paths` instance from the current file location. Useful in modular systems.
+
+```php
+use ResponsiveSk\Slim4Paths\Paths;
+
+// From a file at src/Modules/Core/SomeClass.php, go up 3 levels to project root
+$paths = Paths::fromHere(__DIR__, 3);
+
+// From a file at src/Services/SomeService.php, go up 2 levels to project root
+$paths = Paths::fromHere(__DIR__, 2);
+
+// Use resolved paths
+$dbPath = $paths->storage('database.db');
+$logPath = $paths->logs('app.log');
+```
+
+**Benefits:**
+- ✅ More expressive than manual path construction
+- ✅ Less error-prone than counting `../` manually
+- ✅ Works in tests, CLI, without DI containers
+- ✅ Automatic path validation with clear error messages
+
 ## Core Path Methods
 
 ### Basic Directories

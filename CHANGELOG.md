@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-06-27
+
+### Added
+- **Convenience Method**
+  - `fromHere()` static method for creating Paths instances from current file location
+  - Automatic path validation with clear error messages
+  - Cross-platform compatibility with proper path resolution
+  - Reduces manual path construction errors
+
+### Enhanced
+- **Developer Experience**
+  - More expressive path creation: `Paths::fromHere(__DIR__, 3)`
+  - Less error-prone than manual `../` counting
+  - Works in tests, CLI, and without DI containers
+  - Better error messages for invalid path resolution
+
+### Examples
+```php
+// Before (error-prone)
+$paths = new Paths(__DIR__ . '/../../..');
+
+// After (clean and safe)
+$paths = Paths::fromHere(__DIR__, 3);
+
+// Usage
+$dbPath = $paths->storage('database.db');
+$logPath = $paths->logs('app.log');
+```
+
 ## [2.0.0] - 2025-06-18
 
 ### Added

@@ -471,4 +471,52 @@ class Paths
         // Use DIRECTORY_SEPARATOR for cross-platform compatibility
         return $basePath . DIRECTORY_SEPARATOR . $relativePath;
     }
+
+    /**
+     * Create Paths instance from current file location
+     *
+     * Convenience method to create a Paths instance by going up a specified number
+     * of directory levels from the current file location. This is especially useful
+     * in modular systems where you need to reference the project root.
+     *
+     * @param string $dir Starting directory (usually __DIR__)
+     * @param int $levelsUp Number of directory levels to go up (default: 3)
+     * @return self New Paths instance
+     * @throws \RuntimeException If the resolved path is invalid
+     *
+     * @example
+     * // From a file at src/Modules/Core/SomeClass.php, go up 3 levels to project root
+     * $paths = Paths::fromHere(__DIR__, 3);
+     *
+     * // From a file at src/Services/SomeService.php, go up 2 levels to project root
+     * $paths = Paths::fromHere(__DIR__, 2);
+     *
+     * // Use resolved paths
+     * $dbPath = $paths->storage('database.db');
+     * $logPath = $paths->logs('app.log');
+     */
+    public static function fromHere(string $dir = __DIR__, int $levelsUp = 3): self
+    {
+        // Build the relative path string for going up directories
+        $upPath = str_repeat('/..', $levelsUp);
+
+        // Resolve the absolute path
+        $basePath = realpath($dir . $upPath);
+
+        if ($basePath === false || !is_string($basePath)) {
+            throw new \RuntimeException(
+                "Could not resolve base path from: {$dir} going up {$levelsUp} levels. " .
+                "Attempted path: {$dir}{$upPath}"
+            );
+        }
+
+        // Verify the resolved path exists and is a directory
+        if (!is_dir($basePath)) {
+            throw new \RuntimeException(
+                "Resolved path is not a directory: {$basePath}"
+            );
+        }
+
+        return new self($basePath);
+    }
 }
