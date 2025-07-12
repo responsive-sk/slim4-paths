@@ -6,6 +6,10 @@ namespace ResponsiveSk\Slim4Paths;
 
 use ResponsiveSk\Slim4Paths\Presets\PresetFactory;
 use ResponsiveSk\Slim4Paths\Presets\PresetInterface;
+use ResponsiveSk\Slim4Paths\Security\PathSanitizer;
+use ResponsiveSk\Slim4Paths\Security\SecurityConfig;
+use ResponsiveSk\Slim4Paths\Filesystem\FilesystemInterface;
+use ResponsiveSk\Slim4Paths\Filesystem\LocalFilesystem;
 
 /**
  * Enhanced paths management for PHP applications
@@ -17,9 +21,13 @@ use ResponsiveSk\Slim4Paths\Presets\PresetInterface;
 class Paths
 {
     private string $basePath;
-    
+
     /** @var array<string, string> */
     private array $paths;
+
+    private ?SecurityConfig $securityConfig = null;
+    private ?PathSanitizer $pathSanitizer = null;
+    private ?FilesystemInterface $filesystem = null;
 
     /**
      * Constructor
@@ -266,7 +274,7 @@ class Paths
      */
     public function moduleConfig(string $module): string
     {
-        return $this->getPath($this->src('Modules'), $module, 'config.php');
+        return $this->getPath($this->src('Modules'), $module . '/config.php');
     }
 
     /**
@@ -274,7 +282,7 @@ class Paths
      */
     public function moduleRoutes(string $module): string
     {
-        return $this->getPath($this->src('Modules'), $module, 'routes.php');
+        return $this->getPath($this->src('Modules'), $module . '/routes.php');
     }
 
     /**
@@ -282,7 +290,7 @@ class Paths
      */
     public function moduleTemplates(string $module, string $template = ''): string
     {
-        $path = $this->getPath($this->src('Modules'), $module, 'templates');
+        $path = $this->getPath($this->src('Modules'), $module . '/templates');
         return $template ? $this->getPath($path, $template) : $path;
     }
 
@@ -460,13 +468,34 @@ class Paths
      */
     public function getPath(string $basePath, string $relativePath): string
     {
-        // Validate relative path for security
-        if (str_contains($relativePath, '..')) {
-            throw new \InvalidArgumentException("Path traversal detected in: {$relativePath}");
-        }
+        // Enhanced security validation if config is available
+        if ($this->securityConfig !== null) {
+            $config = $this->getSecurityConfig();
 
-        if (str_contains($relativePath, '~')) {
-            throw new \InvalidArgumentException("Home directory access not allowed: {$relativePath}");
+            // Check if path is trusted (bypass some checks)
+            if (!$config->isPathTrusted($relativePath)) {
+                // Apply enhanced validation
+                if ($config->isPathTraversalProtectionEnabled() && str_contains($relativePath, '..')) {
+                    throw new \InvalidArgumentException("Path traversal detected in: {$relativePath}");
+                }
+
+                if ($config->isEncodingProtectionEnabled()) {
+                    $this->validateEncoding($relativePath);
+                }
+
+                if ($config->isLengthValidationEnabled()) {
+                    $this->validateLength($relativePath, $config);
+                }
+            }
+        } else {
+            // Basic validation (backward compatibility)
+            if (str_contains($relativePath, '..')) {
+                throw new \InvalidArgumentException("Path traversal detected in: {$relativePath}");
+            }
+
+            if (str_contains($relativePath, '~')) {
+                throw new \InvalidArgumentException("Home directory access not allowed: {$relativePath}");
+            }
         }
 
         // Clean and normalize the path
@@ -474,6 +503,44 @@ class Paths
 
         // Use DIRECTORY_SEPARATOR for cross-platform compatibility
         return $basePath . DIRECTORY_SEPARATOR . $relativePath;
+    }
+
+    /**
+     * Validate encoding attacks
+     */
+    private function validateEncoding(string $path): void
+    {
+        // Check for URL encoding attacks
+        if (str_contains($path, '%')) {
+            $decoded = urldecode($path);
+            if (str_contains($decoded, '..') || str_contains($decoded, '~')) {
+                throw new \InvalidArgumentException("Encoded path traversal detected: {$path}");
+            }
+        }
+
+        // Check for null bytes
+        if (str_contains($path, "\0") || str_contains($path, '%00')) {
+            throw new \InvalidArgumentException("Null byte detected in path: {$path}");
+        }
+    }
+
+    /**
+     * Validate path length
+     */
+    private function validateLength(string $path, SecurityConfig $config): void
+    {
+        if (strlen($path) > $config->getMaxPathLength()) {
+            throw new \InvalidArgumentException(
+                "Path too long: {$config->getMaxPathLength()} characters maximum"
+            );
+        }
+
+        $filename = basename($path);
+        if (strlen($filename) > $config->getMaxFilenameLength()) {
+            throw new \InvalidArgumentException(
+                "Filename too long: {$config->getMaxFilenameLength()} characters maximum"
+            );
+        }
     }
 
     /**
@@ -650,6 +717,216 @@ class Paths
         $presetInstance = PresetFactory::create($preset, $this->basePath);
         $mergedPaths = array_merge($this->paths, $presetInstance->getPaths());
         return new self($this->basePath, $mergedPaths);
+    }
+
+    /**
+     * Set security configuration
+     */
+    public function setSecurityConfig(SecurityConfig $config): self
+    {
+        $this->securityConfig = $config;
+        return $this;
+    }
+
+    /**
+     * Set custom path sanitizer
+     */
+    public function setPathSanitizer(PathSanitizer $sanitizer): self
+    {
+        $this->pathSanitizer = $sanitizer;
+        return $this;
+    }
+
+    /**
+     * Get security configuration (creates default if not set)
+     */
+    public function getSecurityConfig(): SecurityConfig
+    {
+        if ($this->securityConfig === null) {
+            $this->securityConfig = SecurityConfig::forProduction();
+        }
+        return $this->securityConfig;
+    }
+
+    /**
+     * Get path sanitizer (creates default if not set)
+     */
+    public function getPathSanitizer(): PathSanitizer
+    {
+        if ($this->pathSanitizer === null) {
+            $this->pathSanitizer = new PathSanitizer();
+        }
+        return $this->pathSanitizer;
+    }
+
+    /**
+     * Secure path joining with enhanced validation
+     *
+     * @param string $basePath Base directory path
+     * @param string $relativePath Relative path to join
+     * @param bool $useSanitizer Whether to use advanced sanitization
+     * @return string Secure joined path
+     * @throws \InvalidArgumentException If path is invalid or dangerous
+     */
+    public function getSecurePath(string $basePath, string $relativePath, bool $useSanitizer = true): string
+    {
+        if ($useSanitizer) {
+            $relativePath = $this->getPathSanitizer()->sanitize($relativePath);
+        }
+
+        return $this->getPath($basePath, $relativePath);
+    }
+
+    /**
+     * Validate path against security configuration
+     *
+     * @throws \InvalidArgumentException If path fails validation
+     */
+    public function validatePath(string $path): bool
+    {
+        try {
+            $this->getPathSanitizer()->sanitize($path);
+            return true;
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+    }
+
+    /**
+     * Create Paths instance with security configuration
+     *
+     * @param string $basePath Base application path
+     * @param SecurityConfig $securityConfig Security configuration
+     * @param array<string, string> $customPaths Optional custom paths
+     */
+    public static function withSecurity(string $basePath, SecurityConfig $securityConfig, array $customPaths = []): self
+    {
+        $instance = new self($basePath, $customPaths);
+        $instance->setSecurityConfig($securityConfig);
+        return $instance;
+    }
+
+    /**
+     * Create Paths instance with preset and security
+     *
+     * @param string $preset Framework preset name
+     * @param string $basePath Base application path
+     * @param SecurityConfig $securityConfig Security configuration
+     */
+    public static function withPresetAndSecurity(string $preset, string $basePath, SecurityConfig $securityConfig): self
+    {
+        $instance = self::withPreset($preset, $basePath);
+        $instance->setSecurityConfig($securityConfig);
+        return $instance;
+    }
+
+    /**
+     * Set filesystem implementation
+     */
+    public function setFilesystem(FilesystemInterface $filesystem): self
+    {
+        $this->filesystem = $filesystem;
+        return $this;
+    }
+
+    /**
+     * Get filesystem implementation (creates default if not set)
+     */
+    public function getFilesystem(): FilesystemInterface
+    {
+        if ($this->filesystem === null) {
+            $this->filesystem = new LocalFilesystem($this->basePath);
+        }
+        return $this->filesystem;
+    }
+
+    /**
+     * Create filesystem for specific path
+     */
+    public function createFilesystem(string $pathName): FilesystemInterface
+    {
+        $path = $this->get($pathName);
+        return new LocalFilesystem($path);
+    }
+
+    /**
+     * Create Paths instance with filesystem
+     *
+     * @param array<string, string> $customPaths
+     */
+    public static function withFilesystem(string $basePath, FilesystemInterface $filesystem, array $customPaths = []): self
+    {
+        $instance = new self($basePath, $customPaths);
+        $instance->setFilesystem($filesystem);
+        return $instance;
+    }
+
+    /**
+     * Create Paths instance with preset and filesystem
+     */
+    public static function withPresetAndFilesystem(string $preset, string $basePath, FilesystemInterface $filesystem): self
+    {
+        $instance = self::withPreset($preset, $basePath);
+        $instance->setFilesystem($filesystem);
+        return $instance;
+    }
+
+    // === FILE OPERATIONS SHORTCUTS ===
+
+    /**
+     * Check if file exists in specific path
+     */
+    public function fileExists(string $pathName, string $filename): bool
+    {
+        $filesystem = $this->createFilesystem($pathName);
+        return $filesystem->exists($filename);
+    }
+
+    /**
+     * Read file from specific path
+     */
+    public function readFile(string $pathName, string $filename): string
+    {
+        $filesystem = $this->createFilesystem($pathName);
+        return $filesystem->read($filename);
+    }
+
+    /**
+     * Write file to specific path
+     */
+    public function writeFile(string $pathName, string $filename, string $contents): void
+    {
+        $filesystem = $this->createFilesystem($pathName);
+        $filesystem->write($filename, $contents);
+    }
+
+    /**
+     * Delete file from specific path
+     */
+    public function deleteFile(string $pathName, string $filename): void
+    {
+        $filesystem = $this->createFilesystem($pathName);
+        $filesystem->delete($filename);
+    }
+
+    /**
+     * List files in specific path
+     *
+     * @return array<string>
+     */
+    public function listFiles(string $pathName): array
+    {
+        $filesystem = $this->createFilesystem($pathName);
+        return $filesystem->listContents('');
+    }
+
+    /**
+     * Create directory in specific path
+     */
+    public function createDir(string $pathName, string $dirname, int $permissions = 0755): void
+    {
+        $filesystem = $this->createFilesystem($pathName);
+        $filesystem->createDirectory($dirname, $permissions);
     }
 
 
