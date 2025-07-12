@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2025-07-12
+
+### Added
+- **Framework Presets System** - Complete directory structure presets for popular frameworks
+- **Laravel Preset** - Full Laravel directory structure with 25+ predefined paths
+- **Slim 4 Preset** - Slim 4 framework directory structure with 20+ paths
+- **Mezzio/Laminas Preset** - Mezzio framework structure with 25+ paths
+- **PresetFactory** - Factory pattern for creating and managing presets
+- **Custom Preset Registration** - Ability to register custom framework presets
+- **Preset Application** - Apply presets to existing Paths instances
+- **Enhanced API Methods** - withPreset(), applyPreset(), getAvailablePresets()
+- **Comprehensive Test Suite** - Full test coverage for preset functionality
+- **Framework Migration Support** - Easy switching between framework structures
+
+### Changed
+- **Version bump to 3.0.0** - Major version due to new preset system
+- **Enhanced Documentation** - Complete preset usage examples and API reference
+- **Improved Package Description** - Updated to reflect multi-framework support
+- **Extended Keywords** - Added Laravel, Mezzio, Laminas to package keywords
+
+### Technical Details
+- Added PresetInterface for consistent preset implementation
+- Created AbstractPreset base class with common functionality
+- Implemented framework-specific preset classes (LaravelPreset, Slim4Preset, MezzioPreset)
+- Enhanced Paths class with preset integration methods
+- Maintained backward compatibility with existing API
+- Added comprehensive examples demonstrating preset usage
+
 ## [2.2.0] - 2025-06-27
 
 ### Added

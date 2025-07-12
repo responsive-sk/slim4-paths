@@ -1,10 +1,10 @@
 {
     "name": "responsive-sk/slim4-paths",
-    "version": "2.2.0",
-    "description": "Enhanced secure path management for PHP applications with 30+ predefined paths, security validation, and Orbit CMS support",
+    "version": "3.0.0",
+    "description": "Enhanced secure path management for PHP applications with framework presets (Laravel, Slim4, Mezzio), 30+ predefined paths, security validation, and Orbit CMS support",
     "type": "library",
     "license": "MIT",
-    "keywords": ["slim", "slim4", "paths", "php", "framework", "security", "orbit", "cms", "path-traversal", "validation"],
+    "keywords": ["slim", "slim4", "laravel", "mezzio", "laminas", "paths", "php", "framework", "presets", "security", "orbit", "cms", "path-traversal", "validation"],
     "authors": [
         {
             "name": "Responsive SK",

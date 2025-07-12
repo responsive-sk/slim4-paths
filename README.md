@@ -4,8 +4,9 @@ A comprehensive, secure path management package for PHP applications with advanc
 
 ## Features
 
+- **Framework Presets** - Laravel, Slim 4, Mezzio/Laminas presets
 - **Secure Path Joining** - Prevents path traversal attacks
-- **30+ Predefined Paths** - Complete coverage for web applications
+- **50+ Predefined Paths** - Framework-specific directory structures
 - **Cross-Platform Compatibility** - Works on Windows, Linux, macOS
 - **Auto-Directory Creation** - Automatic directory structure setup
 - **Security Validation** - Input validation and path sanitization
@@ -17,6 +18,72 @@ A comprehensive, secure path management package for PHP applications with advanc
 
 ```bash
 composer require responsive-sk/slim4-paths
+```
+
+## Framework Presets
+
+**NEW in v3.0** Use framework-specific directory presets for instant setup:
+
+### Laravel Preset
+
+```php
+use ResponsiveSk\Slim4Paths\Paths;
+
+$paths = Paths::withPreset('laravel', __DIR__);
+
+// Laravel-specific paths
+echo $paths->get('app');           // /path/to/app
+echo $paths->get('controllers');   // /path/to/app/Http/Controllers
+echo $paths->get('models');        // /path/to/app/Models
+echo $paths->get('views');         // /path/to/resources/views
+echo $paths->get('storage');       // /path/to/storage
+echo $paths->get('migrations');    // /path/to/database/migrations
+echo $paths->get('uploads');       // /path/to/storage/app/public
+```
+
+### Slim 4 Preset
+
+```php
+$paths = Paths::withPreset('slim4', __DIR__);
+
+// Slim 4-specific paths
+echo $paths->get('src');           // /path/to/src
+echo $paths->get('handlers');      // /path/to/src/Handler
+echo $paths->get('actions');       // /path/to/src/Action
+echo $paths->get('templates');     // /path/to/templates
+echo $paths->get('cache');         // /path/to/var/cache
+echo $paths->get('logs');          // /path/to/var/log
+echo $paths->get('uploads');       // /path/to/var/uploads
+```
+
+### Mezzio/Laminas Preset
+
+```php
+$paths = Paths::withPreset('mezzio', __DIR__);
+// or
+$paths = Paths::withPreset('laminas', __DIR__);
+
+// Mezzio-specific paths
+echo $paths->get('src');           // /path/to/src
+echo $paths->get('handlers');      // /path/to/src/Handler
+echo $paths->get('modules');       // /path/to/modules
+echo $paths->get('data');          // /path/to/data
+echo $paths->get('content');       // /path/to/content
+echo $paths->get('database');      // /path/to/data/database
+```
+
+### Available Presets
+
+```php
+// Get all available presets
+$presets = Paths::getAvailablePresets();
+// ['laravel', 'slim4', 'mezzio', 'laminas']
+
+// Get preset information
+$info = Paths::getPresetInfo();
+foreach ($info as $key => $preset) {
+    echo "{$key}: {$preset['name']} - {$preset['description']}\n";
+}
 ```
 
 ## Basic Usage

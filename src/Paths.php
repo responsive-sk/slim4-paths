@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace ResponsiveSk\Slim4Paths;
 
+use ResponsiveSk\Slim4Paths\Presets\PresetFactory;
+use ResponsiveSk\Slim4Paths\Presets\PresetInterface;
+
 /**
- * Simple paths management for Slim 4 applications
- * 
- * Provides easy access to common application paths without external dependencies.
- * Designed to be lightweight and fast.
+ * Enhanced paths management for PHP applications
+ *
+ * Provides easy access to common application paths with framework presets support.
+ * Supports Laravel, Slim 4, Mezzio/Laminas directory structures.
+ * Designed to be lightweight, fast, and secure.
  */
 class Paths
 {
@@ -564,6 +568,88 @@ class Paths
         }
 
         return new self($resolvedPath);
+    }
+
+    /**
+     * Create Paths instance with framework preset
+     *
+     * @param string $preset Framework preset name (laravel, slim4, mezzio, laminas)
+     * @param string $basePath Base application path
+     * @return self New Paths instance with preset paths
+     * @throws \InvalidArgumentException If preset doesn't exist
+     *
+     * @example
+     * // Laravel preset
+     * $paths = Paths::withPreset('laravel', __DIR__);
+     * echo $paths->get('controllers'); // /path/to/app/Http/Controllers
+     * echo $paths->get('views'); // /path/to/resources/views
+     *
+     * // Slim 4 preset
+     * $paths = Paths::withPreset('slim4', __DIR__);
+     * echo $paths->get('handlers'); // /path/to/src/Handler
+     * echo $paths->get('templates'); // /path/to/templates
+     *
+     * // Mezzio preset
+     * $paths = Paths::withPreset('mezzio', __DIR__);
+     * echo $paths->get('modules'); // /path/to/modules
+     * echo $paths->get('data'); // /path/to/data
+     */
+    public static function withPreset(string $preset, string $basePath): self
+    {
+        $presetInstance = PresetFactory::create($preset, $basePath);
+        return new self($basePath, $presetInstance->getPaths());
+    }
+
+    /**
+     * Get available framework presets
+     *
+     * @return array<string>
+     */
+    public static function getAvailablePresets(): array
+    {
+        return PresetFactory::getAvailablePresets();
+    }
+
+    /**
+     * Get preset information
+     *
+     * @return array<string, array{name: string, description: string, class: string}>
+     */
+    public static function getPresetInfo(): array
+    {
+        return PresetFactory::getPresetInfo();
+    }
+
+    /**
+     * Register custom preset
+     *
+     * @param string $name Preset name
+     * @param class-string<PresetInterface> $presetClass Preset class
+     */
+    public static function registerPreset(string $name, string $presetClass): void
+    {
+        PresetFactory::register($name, $presetClass);
+    }
+
+    /**
+     * Check if preset exists
+     */
+    public static function hasPreset(string $name): bool
+    {
+        return PresetFactory::has($name);
+    }
+
+    /**
+     * Apply preset to existing Paths instance
+     *
+     * @param string $preset Framework preset name
+     * @return self New Paths instance with merged paths
+     */
+    public function applyPreset(string $preset): self
+    {
+        $presetInstance = PresetFactory::create($preset, $this->basePath);
+        $mergedPaths = array_merge($this->paths, $presetInstance->getPaths());
+        return new self($this->basePath, $mergedPaths);
     }
 
 
