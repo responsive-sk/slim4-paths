@@ -4,930 +4,236 @@ declare(strict_types=1);
 
 namespace ResponsiveSk\Slim4Paths;
 
-use ResponsiveSk\Slim4Paths\Presets\PresetFactory;
-use ResponsiveSk\Slim4Paths\Presets\PresetInterface;
-use ResponsiveSk\Slim4Paths\Security\PathSanitizer;
-use ResponsiveSk\Slim4Paths\Security\SecurityConfig;
-use ResponsiveSk\Slim4Paths\Filesystem\FilesystemInterface;
-use ResponsiveSk\Slim4Paths\Filesystem\LocalFilesystem;
+use RuntimeException;
+
+use function array_merge;
+use function ltrim;
+use function preg_match;
+use function realpath;
+use function rtrim;
+use function str_contains;
+use function str_replace;
+use function strpos;
+use function urldecode;
 
 /**
- * Enhanced paths management for PHP applications
+ * Lightweight Paths management - Version 6.0
+ * 
+ * Memory-efficient implementation with minimal footprint.
+ * Breaking change: Simplified API, removed heavy features.
+ * Default paths use var/ directory for best practices.
  *
- * Provides easy access to common application paths with framework presets support.
- * Supports Laravel, Slim 4, Mezzio/Laminas directory structures.
- * Designed to be lightweight, fast, and secure.
+ * @package ResponsiveSk\Slim4Paths
+ * @author  ResponsiveSk
+ * @license MIT
+ * @version 6.0.0
  */
 class Paths
 {
     private string $basePath;
-
+    
     /** @var array<string, string> */
     private array $paths;
-
-    private ?SecurityConfig $securityConfig = null;
-    private ?PathSanitizer $pathSanitizer = null;
-    private ?FilesystemInterface $filesystem = null;
-
+    
+    private ?string $preset = null;
+    private bool $presetLoaded = false;
+    
     /**
-     * Constructor
+     * Constructor - lightweight initialization
      * 
-     * @param string $basePath Application base path (usually __DIR__ or dirname(__DIR__))
-     * @param array<string, string> $customPaths Optional custom paths to override defaults
+     * @param string $basePath Application base path
+     * @param array<string, string> $customPaths Optional custom paths
+     * @param string|null $preset Optional preset name for lazy loading
      */
-    public function __construct(string $basePath, array $customPaths = [])
+    public function __construct(string $basePath, array $customPaths = [], ?string $preset = null)
     {
         $this->basePath = rtrim($basePath, '/\\');
+        $this->preset = $preset;
         $this->initializePaths($customPaths);
     }
-
+    
     /**
-     * Initialize default paths with optional custom overrides
+     * Get path by name with lazy preset loading
+     * 
+     * @param string $name Path name
+     * @param string $fallback Fallback value if path not found
+     * @return string Full path
+     */
+    public function getPath(string $name, string $fallback = ''): string
+    {
+        // Load preset on first access if needed
+        if ($this->preset && !$this->presetLoaded) {
+            $this->loadPreset();
+        }
+        
+        return $this->paths[$name] ?? $fallback;
+    }
+    
+    /**
+     * Get all paths with lazy preset loading
+     * 
+     * @return array<string, string>
+     */
+    public function all(): array
+    {
+        // Load preset on first access if needed
+        if ($this->preset && !$this->presetLoaded) {
+            $this->loadPreset();
+        }
+        
+        return $this->paths;
+    }
+    
+    /**
+     * Check if path exists
+     * 
+     * @param string $name Path name
+     * @return bool
+     */
+    public function has(string $name): bool
+    {
+        return isset($this->paths[$name]);
+    }
+    
+    /**
+     * Set custom path with security validation
+     * 
+     * @param string $name Path name
+     * @param string $path Path value
+     * @return void
+     * @throws RuntimeException If path contains dangerous patterns
+     */
+    public function set(string $name, string $path): void
+    {
+        // Sanitize path for security
+        $sanitizedPath = $this->sanitizePath($path);
+        $this->paths[$name] = $sanitizedPath;
+    }
+    
+    /**
+     * Get base path
+     * 
+     * @return string
+     */
+    public function getBasePath(): string
+    {
+        return $this->basePath;
+    }
+    
+    /**
+     * Create instance with preset (factory method)
+     * 
+     * @param string $preset Preset name
+     * @param string $basePath Base path
+     * @param array<string, string> $customPaths Custom paths
+     * @return self
+     */
+    public static function withPreset(string $preset, string $basePath, array $customPaths = []): self
+    {
+        return new self($basePath, $customPaths, $preset);
+    }
+    
+    /**
+     * Create lightweight instance without preset
+     * 
+     * @param string $basePath Base path
+     * @param array<string, string> $customPaths Custom paths
+     * @return self
+     */
+    public static function create(string $basePath, array $customPaths = []): self
+    {
+        return new self($basePath, $customPaths);
+    }
+    
+    /**
+     * Build absolute path from relative path
+     * 
+     * @param string $relativePath Relative path
+     * @return string Absolute path
+     */
+    public function buildPath(string $relativePath): string
+    {
+        return $this->basePath . '/' . ltrim($relativePath, '/\\');
+    }
+    
+    /**
+     * Initialize minimal default paths
      * 
      * @param array<string, string> $customPaths
      */
     private function initializePaths(array $customPaths): void
     {
+        // Minimal default paths - memory efficient, use var/ by default
         $defaultPaths = [
             // Core directories
             'base' => $this->basePath,
             'config' => $this->basePath . '/config',
             'src' => $this->basePath . '/src',
             'public' => $this->basePath . '/public',
-
-            // Template directories
-            'templates' => $this->basePath . '/templates',
-            'views' => $this->basePath . '/templates',
-            'layouts' => $this->basePath . '/templates/layouts',
-            'partials' => $this->basePath . '/templates/partials',
-
-            // Content directories (Orbit CMS)
-            'content' => $this->basePath . '/content',
-            'articles' => $this->basePath . '/content/articles',
-            'orbit' => $this->basePath . '/var/orbit',
-
-            // Runtime directories
+            'vendor' => $this->basePath . '/vendor',
+            
+            // Runtime directories - use var by default (best practice)
             'var' => $this->basePath . '/var',
+            'data' => $this->basePath . '/var/data',
             'cache' => $this->basePath . '/var/cache',
             'logs' => $this->basePath . '/var/logs',
-            'storage' => $this->basePath . '/var/storage',
-            'keys' => $this->basePath . '/var/keys',
-            'exports' => $this->basePath . '/var/exports',
-            'imports' => $this->basePath . '/var/imports',
-
-            // Asset directories
-            'assets' => $this->basePath . '/public/assets',
-            'css' => $this->basePath . '/public/assets/css',
-            'js' => $this->basePath . '/public/assets/js',
-            'images' => $this->basePath . '/public/assets/images',
-            'fonts' => $this->basePath . '/public/assets/fonts',
-            'media' => $this->basePath . '/public/media',
-            'uploads' => $this->basePath . '/public/uploads',
-
-            // Development directories
-            'tests' => $this->basePath . '/tests',
-            'docs' => $this->basePath . '/docs',
-            'scripts' => $this->basePath . '/scripts',
-            'bin' => $this->basePath . '/bin',
-            'vendor' => $this->basePath . '/vendor',
-
-            // Localization directories
-            'lang' => $this->basePath . '/resources/lang',
-            'translations' => $this->basePath . '/resources/translations',
-            'locales' => $this->basePath . '/resources/locales',
+            'tmp' => $this->basePath . '/var/tmp',
+            
+            // Template directories
+            'templates' => $this->basePath . '/templates',
         ];
-
+        
+        // Merge with custom paths (custom paths have priority)
         $this->paths = array_merge($defaultPaths, $customPaths);
     }
-
+    
     /**
-     * Get path by name
-     * 
-     * @param string $name Path name (e.g., 'config', 'templates', 'logs')
-     * @return string Full path
-     * @throws \InvalidArgumentException If path name doesn't exist
+     * Lazy load preset
      */
-    public function get(string $name): string
+    private function loadPreset(): void
     {
-        if (!isset($this->paths[$name])) {
-            throw new \InvalidArgumentException("Path '{$name}' not found");
+        if (!$this->preset || $this->presetLoaded) {
+            return;
         }
-
-        return $this->paths[$name];
-    }
-
-    /**
-     * Create path relative to base path
-     * 
-     * @param string $relativePath Relative path from base
-     * @return string Full path
-     */
-    public function path(string $relativePath): string
-    {
-        return $this->basePath . '/' . ltrim($relativePath, '/\\');
-    }
-
-    /**
-     * Check if path name exists
-     */
-    public function has(string $name): bool
-    {
-        return isset($this->paths[$name]);
-    }
-
-    /**
-     * Get all configured paths
-     * 
-     * @return array<string, string>
-     */
-    public function all(): array
-    {
-        return $this->paths;
-    }
-
-    /**
-     * Get base path
-     */
-    public function base(): string
-    {
-        return $this->get('base');
-    }
-
-    /**
-     * Get config path with optional file
-     */
-    public function config(string $file = ''): string
-    {
-        $path = $this->get('config');
-        return $file ? $path . '/' . ltrim($file, '/\\') : $path;
-    }
-
-    /**
-     * Get templates path with optional file
-     */
-    public function templates(string $file = ''): string
-    {
-        $path = $this->get('templates');
-        return $file ? $path . '/' . ltrim($file, '/\\') : $path;
-    }
-
-    /**
-     * Get public path with optional file
-     */
-    public function public(string $file = ''): string
-    {
-        $path = $this->get('public');
-        return $file ? $path . '/' . ltrim($file, '/\\') : $path;
-    }
-
-    /**
-     * Get logs path with optional file
-     */
-    public function logs(string $file = ''): string
-    {
-        $path = $this->get('logs');
-        return $file ? $path . '/' . ltrim($file, '/\\') : $path;
-    }
-
-    /**
-     * Get storage path with optional file
-     */
-    public function storage(string $file = ''): string
-    {
-        $path = $this->get('storage');
-        return $file ? $path . '/' . ltrim($file, '/\\') : $path;
-    }
-
-    /**
-     * Get cache path with optional file
-     */
-    public function cache(string $file = ''): string
-    {
-        $path = $this->get('cache');
-        return $file ? $path . '/' . ltrim($file, '/\\') : $path;
-    }
-
-    /**
-     * Get assets path with optional file
-     */
-    public function assets(string $file = ''): string
-    {
-        $path = $this->get('assets');
-        return $file ? $path . '/' . ltrim($file, '/\\') : $path;
-    }
-
-    /**
-     * Get uploads path with optional file
-     */
-    public function uploads(string $file = ''): string
-    {
-        $path = $this->get('uploads');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get content path with optional file
-     */
-    public function content(string $file = ''): string
-    {
-        $path = $this->get('content');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get articles path with optional file
-     */
-    public function articles(string $file = ''): string
-    {
-        $path = $this->get('articles');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get src path with optional file
-     */
-    public function src(string $file = ''): string
-    {
-        $path = $this->get('src');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get orbit path with optional file
-     */
-    public function orbit(string $file = ''): string
-    {
-        $path = $this->get('orbit');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get orbit database path
-     */
-    public function orbitDatabase(string $name): string
-    {
-        return $this->getPath($this->orbit(), $name . '.db');
-    }
-
-    /**
-     * Get module config path
-     */
-    public function moduleConfig(string $module): string
-    {
-        return $this->getPath($this->src('Modules'), $module . '/config.php');
-    }
-
-    /**
-     * Get module routes path
-     */
-    public function moduleRoutes(string $module): string
-    {
-        return $this->getPath($this->src('Modules'), $module . '/routes.php');
-    }
-
-    /**
-     * Get module templates path
-     */
-    public function moduleTemplates(string $module, string $template = ''): string
-    {
-        $path = $this->getPath($this->src('Modules'), $module . '/templates');
-        return $template ? $this->getPath($path, $template) : $path;
-    }
-
-    /**
-     * Get views path with optional template
-     */
-    public function views(string $template = ''): string
-    {
-        $path = $this->get('views');
-        return $template ? $this->getPath($path, $template) : $path;
-    }
-
-    /**
-     * Get layouts path with optional layout
-     */
-    public function layouts(string $layout = ''): string
-    {
-        $path = $this->get('layouts');
-        return $layout ? $this->getPath($path, $layout) : $path;
-    }
-
-    /**
-     * Get partials path with optional partial
-     */
-    public function partials(string $partial = ''): string
-    {
-        $path = $this->get('partials');
-        return $partial ? $this->getPath($path, $partial) : $path;
-    }
-
-    /**
-     * Get CSS assets path with optional file
-     */
-    public function css(string $file = ''): string
-    {
-        $path = $this->get('css');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get JavaScript assets path with optional file
-     */
-    public function js(string $file = ''): string
-    {
-        $path = $this->get('js');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get images assets path with optional file
-     */
-    public function images(string $file = ''): string
-    {
-        $path = $this->get('images');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get fonts assets path with optional file
-     */
-    public function fonts(string $file = ''): string
-    {
-        $path = $this->get('fonts');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get media path with optional file
-     */
-    public function media(string $file = ''): string
-    {
-        $path = $this->get('media');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get docs path with optional file
-     */
-    public function docs(string $file = ''): string
-    {
-        $path = $this->get('docs');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get scripts path with optional file
-     */
-    public function scripts(string $file = ''): string
-    {
-        $path = $this->get('scripts');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get bin path with optional file (for executable scripts)
-     */
-    public function bin(string $file = ''): string
-    {
-        $path = $this->get('bin');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get keys path with optional file (for security keys)
-     */
-    public function keys(string $file = ''): string
-    {
-        $path = $this->get('keys');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get exports path with optional file
-     */
-    public function exports(string $file = ''): string
-    {
-        $path = $this->get('exports');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get imports path with optional file
-     */
-    public function imports(string $file = ''): string
-    {
-        $path = $this->get('imports');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get language path with locale and optional file
-     */
-    public function lang(string $locale, string $file = ''): string
-    {
-        $path = $this->getPath($this->get('lang'), $locale);
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get translations path with optional file
-     */
-    public function translations(string $file = ''): string
-    {
-        $path = $this->get('translations');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Get locales path
-     */
-    public function locales(): string
-    {
-        return $this->get('locales');
-    }
-
-    /**
-     * Get tests path with optional file
-     */
-    public function tests(string $file = ''): string
-    {
-        $path = $this->get('tests');
-        return $file ? $this->getPath($path, $file) : $path;
-    }
-
-    /**
-     * Secure path joining method.
-     *
-     * Prevents path traversal attacks by validating relative paths.
-     * This is the MAIN method that should be used for all path operations.
-     *
-     * @param string $basePath Base directory path
-     * @param string $relativePath Relative path to join
-     * @return string Secure joined path
-     * @throws \InvalidArgumentException If path traversal is detected
-     */
-    public function getPath(string $basePath, string $relativePath): string
-    {
-        // Enhanced security validation if config is available
-        if ($this->securityConfig !== null) {
-            $config = $this->getSecurityConfig();
-
-            // Check if path is trusted (bypass some checks)
-            if (!$config->isPathTrusted($relativePath)) {
-                // Apply enhanced validation
-                if ($config->isPathTraversalProtectionEnabled() && str_contains($relativePath, '..')) {
-                    throw new \InvalidArgumentException("Path traversal detected in: {$relativePath}");
-                }
-
-                if ($config->isEncodingProtectionEnabled()) {
-                    $this->validateEncoding($relativePath);
-                }
-
-                if ($config->isLengthValidationEnabled()) {
-                    $this->validateLength($relativePath, $config);
-                }
-            }
-        } else {
-            // Basic validation (backward compatibility)
-            if (str_contains($relativePath, '..')) {
-                throw new \InvalidArgumentException("Path traversal detected in: {$relativePath}");
-            }
-
-            if (str_contains($relativePath, '~')) {
-                throw new \InvalidArgumentException("Home directory access not allowed: {$relativePath}");
-            }
-        }
-
-        // Clean and normalize the path
-        $relativePath = ltrim($relativePath, '/\\');
-
-        // Use DIRECTORY_SEPARATOR for cross-platform compatibility
-        return $basePath . DIRECTORY_SEPARATOR . $relativePath;
-    }
-
-    /**
-     * Validate encoding attacks
-     */
-    private function validateEncoding(string $path): void
-    {
-        // Check for URL encoding attacks
-        if (str_contains($path, '%')) {
-            $decoded = urldecode($path);
-            if (str_contains($decoded, '..') || str_contains($decoded, '~')) {
-                throw new \InvalidArgumentException("Encoded path traversal detected: {$path}");
-            }
-        }
-
-        // Check for null bytes
-        if (str_contains($path, "\0") || str_contains($path, '%00')) {
-            throw new \InvalidArgumentException("Null byte detected in path: {$path}");
-        }
-    }
-
-    /**
-     * Validate path length
-     */
-    private function validateLength(string $path, SecurityConfig $config): void
-    {
-        if (strlen($path) > $config->getMaxPathLength()) {
-            throw new \InvalidArgumentException(
-                "Path too long: {$config->getMaxPathLength()} characters maximum"
-            );
-        }
-
-        $filename = basename($path);
-        if (strlen($filename) > $config->getMaxFilenameLength()) {
-            throw new \InvalidArgumentException(
-                "Filename too long: {$config->getMaxFilenameLength()} characters maximum"
-            );
-        }
-    }
-
-    /**
-     * Create Paths instance from current file location
-     *
-     * Convenience method to create a Paths instance by going up a specified number
-     * of directory levels from the current file location. This is especially useful
-     * in modular systems where you need to reference the project root.
-     *
-     * @param string $dir Starting directory (usually __DIR__)
-     * @param int $levelsUp Number of directory levels to go up (default: 3)
-     * @return self New Paths instance
-     * @throws \RuntimeException If the resolved path is invalid
-     *
-     * @example
-     * // From a file at src/Modules/Core/SomeClass.php, go up 3 levels to project root
-     * $paths = Paths::fromHere(__DIR__, 3);
-     *
-     * // From a file at src/Services/SomeService.php, go up 2 levels to project root
-     * $paths = Paths::fromHere(__DIR__, 2);
-     *
-     * // Use resolved paths
-     * $dbPath = $paths->storage('database.db');
-     * $logPath = $paths->logs('app.log');
-     */
-    public static function fromHere(string $dir = __DIR__, int $levelsUp = 3): self
-    {
-        // Build the relative path string for going up directories
-        $upPath = str_repeat('/..', $levelsUp);
-
-        // Resolve the absolute path
-        $basePath = realpath($dir . $upPath);
-
-        if ($basePath === false || !is_string($basePath)) {
-            throw new \RuntimeException(
-                "Could not resolve base path from: {$dir} going up {$levelsUp} levels. " .
-                "Attempted path: {$dir}{$upPath}"
-            );
-        }
-
-        // Verify the resolved path exists and is a directory
-        if (!is_dir($basePath)) {
-            throw new \RuntimeException(
-                "Resolved path is not a directory: {$basePath}"
-            );
-        }
-
-        return new self($basePath);
-    }
-
-    /**
-     * Create Paths instance from environment variable
-     *
-     * Reads the base path from an environment variable. Useful for applications
-     * that need to configure the base path via environment configuration.
-     *
-     * @param string $envVar Environment variable name (default: APP_BASE_PATH)
-     * @return self New Paths instance
-     * @throws \RuntimeException If environment variable is not set or path is invalid
-     *
-     * @example
-     * // Set environment variable
-     * putenv('APP_BASE_PATH=/path/to/project');
-     *
-     * // Create Paths instance from environment
-     * $paths = Paths::fromEnv();
-     *
-     * // Or use custom environment variable
-     * $paths = Paths::fromEnv('BASE_PATH');
-     */
-    public static function fromEnv(string $envVar = 'APP_BASE_PATH'): self
-    {
-        $basePath = getenv($envVar);
-
-        if ($basePath === false || $basePath === '') {
-            throw new \RuntimeException("Environment variable '{$envVar}' is not set or empty");
-        }
-
-        // Resolve and validate the path
-        $resolvedPath = realpath($basePath);
-
-        if ($resolvedPath === false || !is_string($resolvedPath)) {
-            throw new \RuntimeException(
-                "Environment variable '{$envVar}' contains invalid path: {$basePath}"
-            );
-        }
-
-        if (!is_dir($resolvedPath)) {
-            throw new \RuntimeException(
-                "Environment variable '{$envVar}' path is not a directory: {$resolvedPath}"
-            );
-        }
-
-        return new self($resolvedPath);
-    }
-
-    /**
-     * Create Paths instance with framework preset
-     *
-     * @param string $preset Framework preset name (laravel, slim4, mezzio, laminas)
-     * @param string $basePath Base application path
-     * @return self New Paths instance with preset paths
-     * @throws \InvalidArgumentException If preset doesn't exist
-     *
-     * @example
-     * // Laravel preset
-     * $paths = Paths::withPreset('laravel', __DIR__);
-     * echo $paths->get('controllers'); // /path/to/app/Http/Controllers
-     * echo $paths->get('views'); // /path/to/resources/views
-     *
-     * // Slim 4 preset
-     * $paths = Paths::withPreset('slim4', __DIR__);
-     * echo $paths->get('handlers'); // /path/to/src/Handler
-     * echo $paths->get('templates'); // /path/to/templates
-     *
-     * // Mezzio preset
-     * $paths = Paths::withPreset('mezzio', __DIR__);
-     * echo $paths->get('modules'); // /path/to/modules
-     * echo $paths->get('data'); // /path/to/data
-     */
-    public static function withPreset(string $preset, string $basePath): self
-    {
-        $presetInstance = PresetFactory::create($preset, $basePath);
-        return new self($basePath, $presetInstance->getPaths());
-    }
-
-    /**
-     * Get available framework presets
-     *
-     * @return array<string>
-     */
-    public static function getAvailablePresets(): array
-    {
-        return PresetFactory::getAvailablePresets();
-    }
-
-    /**
-     * Get preset information
-     *
-     * @return array<string, array{name: string, description: string, class: string}>
-     */
-    public static function getPresetInfo(): array
-    {
-        return PresetFactory::getPresetInfo();
-    }
-
-    /**
-     * Register custom preset
-     *
-     * @param string $name Preset name
-     * @param class-string<PresetInterface> $presetClass Preset class
-     */
-    public static function registerPreset(string $name, string $presetClass): void
-    {
-        PresetFactory::register($name, $presetClass);
-    }
-
-    /**
-     * Check if preset exists
-     */
-    public static function hasPreset(string $name): bool
-    {
-        return PresetFactory::has($name);
-    }
-
-    /**
-     * Apply preset to existing Paths instance
-     *
-     * @param string $preset Framework preset name
-     * @return self New Paths instance with merged paths
-     */
-    public function applyPreset(string $preset): self
-    {
-        $presetInstance = PresetFactory::create($preset, $this->basePath);
-        $mergedPaths = array_merge($this->paths, $presetInstance->getPaths());
-        return new self($this->basePath, $mergedPaths);
-    }
-
-    /**
-     * Set security configuration
-     */
-    public function setSecurityConfig(SecurityConfig $config): self
-    {
-        $this->securityConfig = $config;
-        return $this;
-    }
-
-    /**
-     * Set custom path sanitizer
-     */
-    public function setPathSanitizer(PathSanitizer $sanitizer): self
-    {
-        $this->pathSanitizer = $sanitizer;
-        return $this;
-    }
-
-    /**
-     * Get security configuration (creates default if not set)
-     */
-    public function getSecurityConfig(): SecurityConfig
-    {
-        if ($this->securityConfig === null) {
-            $this->securityConfig = SecurityConfig::forProduction();
-        }
-        return $this->securityConfig;
-    }
-
-    /**
-     * Get path sanitizer (creates default if not set)
-     */
-    public function getPathSanitizer(): PathSanitizer
-    {
-        if ($this->pathSanitizer === null) {
-            $this->pathSanitizer = new PathSanitizer();
-        }
-        return $this->pathSanitizer;
-    }
-
-    /**
-     * Secure path joining with enhanced validation
-     *
-     * @param string $basePath Base directory path
-     * @param string $relativePath Relative path to join
-     * @param bool $useSanitizer Whether to use advanced sanitization
-     * @return string Secure joined path
-     * @throws \InvalidArgumentException If path is invalid or dangerous
-     */
-    public function getSecurePath(string $basePath, string $relativePath, bool $useSanitizer = true): string
-    {
-        if ($useSanitizer) {
-            $relativePath = $this->getPathSanitizer()->sanitize($relativePath);
-        }
-
-        return $this->getPath($basePath, $relativePath);
-    }
-
-    /**
-     * Validate path against security configuration
-     *
-     * @throws \InvalidArgumentException If path fails validation
-     */
-    public function validatePath(string $path): bool
-    {
+        
         try {
-            $this->getPathSanitizer()->sanitize($path);
-            return true;
-        } catch (\InvalidArgumentException) {
-            return false;
+            $presetPaths = PresetManager::loadPreset($this->preset, $this->basePath);
+            
+            // Merge preset paths with existing paths
+            $this->paths = array_merge($this->paths, $presetPaths);
+            
+            $this->presetLoaded = true;
+        } catch (\Exception $e) {
+            // If preset loading fails, continue with default paths
+            $this->presetLoaded = true;
         }
     }
-
+    
     /**
-     * Create Paths instance with security configuration
-     *
-     * @param string $basePath Base application path
-     * @param SecurityConfig $securityConfig Security configuration
-     * @param array<string, string> $customPaths Optional custom paths
+     * Sanitize path to prevent path traversal attacks
+     * 
+     * @param string $path Path to sanitize
+     * @return string Sanitized path
+     * @throws RuntimeException If path contains dangerous patterns
      */
-    public static function withSecurity(string $basePath, SecurityConfig $securityConfig, array $customPaths = []): self
+    private function sanitizePath(string $path): string
     {
-        $instance = new self($basePath, $customPaths);
-        $instance->setSecurityConfig($securityConfig);
-        return $instance;
-    }
-
-    /**
-     * Create Paths instance with preset and security
-     *
-     * @param string $preset Framework preset name
-     * @param string $basePath Base application path
-     * @param SecurityConfig $securityConfig Security configuration
-     */
-    public static function withPresetAndSecurity(string $preset, string $basePath, SecurityConfig $securityConfig): self
-    {
-        $instance = self::withPreset($preset, $basePath);
-        $instance->setSecurityConfig($securityConfig);
-        return $instance;
-    }
-
-    /**
-     * Set filesystem implementation
-     */
-    public function setFilesystem(FilesystemInterface $filesystem): self
-    {
-        $this->filesystem = $filesystem;
-        return $this;
-    }
-
-    /**
-     * Get filesystem implementation (creates default if not set)
-     */
-    public function getFilesystem(): FilesystemInterface
-    {
-        if ($this->filesystem === null) {
-            $this->filesystem = new LocalFilesystem($this->basePath);
+        // Check for path traversal patterns
+        if (preg_match('/\.\.\/|\.\.\\\\/', $path)) {
+            throw new RuntimeException("Path traversal detected in path: {$path}");
         }
-        return $this->filesystem;
+        
+        // Check for null bytes
+        if (strpos($path, "\0") !== false) {
+            throw new RuntimeException("Null byte detected in path: {$path}");
+        }
+        
+        // Check for encoded path traversal
+        $decoded = urldecode($path);
+        if (preg_match('/\.\.\/|\.\.\\\\/', $decoded)) {
+            throw new RuntimeException("Encoded path traversal detected in path: {$path}");
+        }
+        
+        return $path;
     }
-
-    /**
-     * Create filesystem for specific path
-     */
-    public function createFilesystem(string $pathName): FilesystemInterface
-    {
-        $path = $this->get($pathName);
-        return new LocalFilesystem($path);
-    }
-
-    /**
-     * Create Paths instance with filesystem
-     *
-     * @param array<string, string> $customPaths
-     */
-    public static function withFilesystem(string $basePath, FilesystemInterface $filesystem, array $customPaths = []): self
-    {
-        $instance = new self($basePath, $customPaths);
-        $instance->setFilesystem($filesystem);
-        return $instance;
-    }
-
-    /**
-     * Create Paths instance with preset and filesystem
-     */
-    public static function withPresetAndFilesystem(string $preset, string $basePath, FilesystemInterface $filesystem): self
-    {
-        $instance = self::withPreset($preset, $basePath);
-        $instance->setFilesystem($filesystem);
-        return $instance;
-    }
-
-    // === FILE OPERATIONS SHORTCUTS ===
-
-    /**
-     * Check if file exists in specific path
-     */
-    public function fileExists(string $pathName, string $filename): bool
-    {
-        $filesystem = $this->createFilesystem($pathName);
-        return $filesystem->exists($filename);
-    }
-
-    /**
-     * Read file from specific path
-     */
-    public function readFile(string $pathName, string $filename): string
-    {
-        $filesystem = $this->createFilesystem($pathName);
-        return $filesystem->read($filename);
-    }
-
-    /**
-     * Write file to specific path
-     */
-    public function writeFile(string $pathName, string $filename, string $contents): void
-    {
-        $filesystem = $this->createFilesystem($pathName);
-        $filesystem->write($filename, $contents);
-    }
-
-    /**
-     * Delete file from specific path
-     */
-    public function deleteFile(string $pathName, string $filename): void
-    {
-        $filesystem = $this->createFilesystem($pathName);
-        $filesystem->delete($filename);
-    }
-
-    /**
-     * List files in specific path
-     *
-     * @return array<string>
-     */
-    public function listFiles(string $pathName): array
-    {
-        $filesystem = $this->createFilesystem($pathName);
-        return $filesystem->listContents('');
-    }
-
-    /**
-     * Create directory in specific path
-     */
-    public function createDir(string $pathName, string $dirname, int $permissions = 0755): void
-    {
-        $filesystem = $this->createFilesystem($pathName);
-        $filesystem->createDirectory($dirname, $permissions);
-    }
-
-
 }

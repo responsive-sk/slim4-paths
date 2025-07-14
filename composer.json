@@ -1,6 +1,6 @@
 {
     "name": "responsive-sk/slim4-paths",
-    "version": "5.0.0",
+    "version": "6.0.0",
     "description": "Complete path management solution for PHP applications with zero dependencies, built-in filesystem operations, enhanced security, framework presets (Laravel, Slim4, Mezzio), and comprehensive validation",
     "type": "library",
     "license": "MIT",

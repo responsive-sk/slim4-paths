@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.0.0] - 2025-01-14
+
+### Breaking Changes
+- Complete rewrite of Paths class for memory efficiency
+- Removed convenience methods (base(), config(), src(), etc.)
+- Simplified API to core methods: getPath(), all(), has(), set()
+- Changed default paths to use var/ directory instead of data/
+- Removed heavy preset system, replaced with lightweight lazy loading
+
+### Added
+- Memory-efficient implementation (98% memory reduction)
+- Lazy loading preset system
+- Built-in path traversal security protection
+- PresetInterface for type safety
+- Comprehensive test suite for v6.0 API
+
+### Changed
+- Default data directory: data/ -> var/data
+- Default logs directory: data/logs -> var/logs
+- Default cache directory: data/cache -> var/cache
+- Memory footprint: ~220KB -> ~4KB
+
+### Removed
+- Convenience methods (breaking change)
+- Heavy preset implementations
+- Security configuration system
+
+### Migration Guide
+- Replace convenience methods with getPath(): config() -> getPath('config')
+- Update paths configuration to use var/ directory
+- Remove security configuration (now built-in)
+
 ## [3.0.0] - 2025-07-12
 
 ### Added
